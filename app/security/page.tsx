@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { marketingApi } from '@/lib/api';
 import { buildPageMetadata } from '@/lib/seo';
+import { SECURITY_FALLBACK } from '@/data/static-pages';
+import type { SecurityContent } from '@/lib/types';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://app.edusphere.app';
 
@@ -16,28 +19,21 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
-const PILLARS = [
-  { icon: '🛡️', title: 'Multi-tenant data isolation', body: 'Every privileged backend query is scoped by the schoolId in your JWT. No code path lets one tenant read another tenant’s rows — not even by guessing IDs. Frontend-supplied IDs are never trusted; the server re-derives the school context from the signed token on every request.' },
-  { icon: '🔑', title: 'Role-based access + permission overrides', body: 'Nine built-in roles (super, district, school admin, teacher, accountant, librarian, office staff, student, parent) plus per-user permission overrides. A school admin can revoke any granular permission for any staff member without writing code.' },
-  { icon: '🔒', title: 'Encryption in transit and at rest', body: 'TLS 1.2+ on every connection. Database volumes encrypted with AES-256 at rest. Refresh tokens hashed before storage. We never store payment card data — Razorpay handles PCI scope end-to-end.' },
-  { icon: '☁️', title: 'Backups, redundancy & uptime', body: 'Hourly point-in-time backups with 30-day retention. Multi-AZ Postgres replication. Target 99.9% monthly uptime; status page reports incidents in real time.' },
-  { icon: '📜', title: 'Audit logs for every state change', body: 'Logins, password resets, fee receipts, exam grading, permission changes — every privileged action is logged with actor, IP, user agent and metadata. School admins can review their own school’s audit trail; super admins can review platform events.' },
-  { icon: '👥', title: 'Strong authentication', body: 'Short-lived access tokens with rotated refresh tokens. Forgot-password flows use single-use, time-boxed reset tokens. Google SSO available on Scale; SAML SSO on Enterprise. MFA on the roadmap for 2026.' },
-];
-
-const CERTIFICATIONS: { label: string; status: string; tone: 'live' | 'soon' | 'na' }[] = [
-  { label: 'SOC 2 Type 1', status: 'Roadmap · Q4 2026', tone: 'soon' },
-  { label: 'GDPR-aligned data handling', status: 'Live', tone: 'live' },
-  { label: 'India DPDP Act readiness', status: 'Live', tone: 'live' },
-  { label: 'PCI scope', status: 'Out of scope (Razorpay handles cards)', tone: 'na' },
-];
-
-const SUBPROCESSORS = [
-  { name: 'Amazon Web Services', purpose: 'Hosting, storage, backups', region: 'ap-south-1 (Mumbai)' },
-  { name: 'Razorpay', purpose: 'Online payments', region: 'India' },
-  { name: 'SendGrid', purpose: 'Transactional email', region: 'Global' },
-  { name: 'Cloudflare', purpose: 'DDoS, CDN, WAF', region: 'Global' },
-];
+function resolveSecurityContent(row: unknown): SecurityContent {
+  const override = (row && typeof row === 'object' && 'content' in row
+    ? (row as { content?: Partial<SecurityContent> }).content
+    : null) ?? {};
+  const merged: SecurityContent = {
+    ...SECURITY_FALLBACK,
+    ...override,
+    hero: { ...SECURITY_FALLBACK.hero, ...(override.hero ?? {}) },
+    cta: { ...SECURITY_FALLBACK.cta, ...(override.cta ?? {}) },
+  };
+  if (!merged.pillars?.length) merged.pillars = SECURITY_FALLBACK.pillars;
+  if (!merged.certifications?.length) merged.certifications = SECURITY_FALLBACK.certifications;
+  if (!merged.subprocessors?.length) merged.subprocessors = SECURITY_FALLBACK.subprocessors;
+  return merged;
+}
 
 const toneStyle: Record<string, string> = {
   live: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -45,27 +41,37 @@ const toneStyle: Record<string, string> = {
   na: 'bg-slate-50 text-slate-600 border-slate-200',
 };
 
-export default function SecurityPage() {
+const IN_SITE = new Set(['/register', '/login', '/contact', '/about', '/pricing']);
+const targetHref = (target: string) =>
+  IN_SITE.has(target) || target.startsWith('/contact') || target.startsWith('/legal')
+    ? target
+    : `${APP_URL}${target}`;
+
+export default async function SecurityPage() {
+  const row = await marketingApi.getPage('security');
+  const content = resolveSecurityContent(row);
+  const [titleA, titleB] = content.hero.title.split('\n');
+
   return (
     <>
       <section className="py-16 pb-8" style={{ background: 'radial-gradient(900px 360px at 50% -10%, #eef2ff 0%, #fff 60%)' }}>
         <div className="max-w-[1100px] mx-auto px-5 text-center">
-          <span className="inline-block px-3.5 py-1 rounded-full bg-indigo-100 text-indigo-700 text-[13px] font-medium">Security</span>
+          <span className="inline-block px-3.5 py-1 rounded-full bg-indigo-100 text-indigo-700 text-[13px] font-medium">
+            {content.hero.eyebrow}
+          </span>
           <h1 className="text-[clamp(28px,4vw,46px)] font-extrabold text-slate-900 mt-3.5 mb-2.5">
-            Schools trust us with their most sensitive data.
-            <br />Here&apos;s how we earn it.
+            {titleA}
+            {titleB ? <><br />{titleB}</> : null}
           </h1>
           <p className="text-slate-600 text-[17px] max-w-[760px] mx-auto mt-3 leading-relaxed">
-            EduSphere is built multi-tenant from the database layer up. Tenant
-            isolation, role-based access control, encryption, and audit logging
-            are not features we added — they are how the platform works.
+            {content.hero.subtitle}
           </p>
         </div>
       </section>
 
       <section className="py-10">
         <div className="max-w-[1100px] mx-auto px-5 grid grid-cols-1 md:grid-cols-2 gap-5">
-          {PILLARS.map((p) => (
+          {content.pillars.map((p) => (
             <div key={p.title} className="bg-white rounded-[14px] p-6 border border-slate-100">
               <div className="text-2xl" style={{ color: 'var(--color-brand)' }}>{p.icon}</div>
               <div className="font-bold text-[17px] text-slate-900 mt-2 mb-1.5">{p.title}</div>
@@ -81,10 +87,12 @@ export default function SecurityPage() {
             <h2 className="text-[22px] font-extrabold text-slate-900 m-0">Compliance &amp; certifications</h2>
             <p className="text-slate-500 mt-2">Where we are today and where we are heading.</p>
             <div className="mt-4 flex flex-col gap-3">
-              {CERTIFICATIONS.map((c) => (
+              {content.certifications.map((c) => (
                 <div key={c.label} className="flex justify-between items-center px-4 py-3 bg-white rounded-[10px] border border-slate-200">
                   <span className="font-semibold text-slate-900">{c.label}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full border ${toneStyle[c.tone]}`}>{c.status}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full border ${toneStyle[c.tone] ?? toneStyle.na}`}>
+                    {c.status}
+                  </span>
                 </div>
               ))}
             </div>
@@ -93,7 +101,7 @@ export default function SecurityPage() {
             <h2 className="text-[22px] font-extrabold text-slate-900 m-0">Subprocessors</h2>
             <p className="text-slate-500 mt-2">Third parties that touch tenant data — listed for transparency.</p>
             <div className="mt-4 flex flex-col gap-3">
-              {SUBPROCESSORS.map((s) => (
+              {content.subprocessors.map((s) => (
                 <div key={s.name} className="px-4 py-3 bg-white rounded-[10px] border border-slate-200">
                   <div className="font-bold text-slate-900">{s.name}</div>
                   <div className="text-slate-600 text-[13px] mt-0.5">{s.purpose} · {s.region}</div>
@@ -145,17 +153,14 @@ export default function SecurityPage() {
           className="max-w-[820px] mx-auto px-7 py-10 rounded-[20px] text-center text-white"
           style={{ background: 'var(--color-brand)' }}
         >
-          <h2 className="text-2xl font-extrabold m-0">Need a security review or vendor questionnaire?</h2>
-          <p className="opacity-90 mt-2.5">
-            We&apos;re happy to walk your IT and procurement teams through our architecture.
-          </p>
+          <h2 className="text-2xl font-extrabold m-0">{content.cta.title}</h2>
+          <p className="opacity-90 mt-2.5">{content.cta.subtitle}</p>
           <a
-            href={`/contact?intent=security`}
+            href={targetHref(content.cta.target)}
             className="inline-block mt-4 px-5 py-2 rounded-lg bg-white text-slate-900 font-medium"
           >
-            Request a security review
+            {content.cta.label}
           </a>
-          <span className="hidden">{APP_URL}</span>
         </div>
       </section>
     </>

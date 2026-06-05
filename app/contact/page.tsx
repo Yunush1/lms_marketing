@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
+import { marketingApi } from '@/lib/api';
 import { buildPageMetadata } from '@/lib/seo';
+import { CONTACT_FALLBACK } from '@/data/static-pages';
+import type { ContactContent } from '@/lib/types';
 import { ContactForm } from './ContactForm';
 
 export const revalidate = 3600;
@@ -12,6 +15,19 @@ export async function generateMetadata(): Promise<Metadata> {
       'Tell us about your school — EduSphere sales will reach out within one business day.',
     path: '/contact',
   });
+}
+
+function resolveContactContent(row: unknown): ContactContent {
+  const override = (row && typeof row === 'object' && 'content' in row
+    ? (row as { content?: Partial<ContactContent> }).content
+    : null) ?? {};
+  const merged: ContactContent = {
+    ...CONTACT_FALLBACK,
+    ...override,
+    hero: { ...CONTACT_FALLBACK.hero, ...(override.hero ?? {}) },
+    channels: { ...CONTACT_FALLBACK.channels, ...(override.channels ?? {}) },
+  };
+  return merged;
 }
 
 const MailIcon = () => (
@@ -32,27 +48,44 @@ const PinIcon = () => (
   </svg>
 );
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const row = await marketingApi.getPage('contact');
+  const content = resolveContactContent(row);
+  const { email, phone, address, hint } = content.channels;
+
   return (
     <div className="py-16">
       <div className="max-w-[1000px] mx-auto px-5">
         <h1 className="text-center text-[clamp(28px,4vw,42px)] font-extrabold text-slate-900 m-0">
-          Talk to our team
+          {content.hero.title}
         </h1>
         <p className="text-center text-slate-500 text-[17px] mt-3 mb-10">
-          Tell us about your school. Sales will reach out within one business day.
+          {content.hero.subtitle}
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
           <div className="md:col-span-5 bg-white rounded-[14px] p-6 border border-slate-100">
             <div className="flex flex-col gap-5">
-              <div><MailIcon /> sales@edusphere.app</div>
-              <div><PhoneIcon /> +91 80 1234 5678</div>
-              <div><PinIcon /> Bengaluru, India</div>
-              <div className="text-slate-500 text-[13px] leading-relaxed mt-2">
-                Prefer a demo? Mention it in the message and we&apos;ll set up
-                a walkthrough tailored to your school.
-              </div>
+              {email && (
+                <div>
+                  <MailIcon /> <a href={`mailto:${email}`} className="hover:underline">{email}</a>
+                </div>
+              )}
+              {phone && (
+                <div>
+                  <PhoneIcon /> <a href={`tel:${phone.replace(/\s+/g, '')}`} className="hover:underline">{phone}</a>
+                </div>
+              )}
+              {address && (
+                <div>
+                  <PinIcon /> {address}
+                </div>
+              )}
+              {hint && (
+                <div className="text-slate-500 text-[13px] leading-relaxed mt-2">
+                  {hint}
+                </div>
+              )}
             </div>
           </div>
 

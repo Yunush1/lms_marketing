@@ -9,7 +9,8 @@ const isGroup = (n: NavLeaf | NavGroup): n is NavGroup => 'items' in n;
 
 interface Props {
   nav: (NavLeaf | NavGroup)[];
-  appUrl: string;
+  /** First name of the signed-in user, or null. */
+  authedFirstName: string | null;
 }
 
 /**
@@ -17,7 +18,7 @@ interface Props {
  * open/closed state and locks body scroll. Splitting it out keeps the rest
  * of the header purely server-rendered (zero client JS).
  */
-export function MobileMenu({ nav, appUrl }: Props) {
+export function MobileMenu({ nav, authedFirstName }: Props) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -85,16 +86,34 @@ export function MobileMenu({ nav, appUrl }: Props) {
                 ),
               )}
               <div className="flex flex-col gap-2 mt-3">
-                <a href={`${appUrl}/login`} className="px-4 py-2 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg text-center">
-                  Sign in
-                </a>
-                <a
-                  href={`${appUrl}/register`}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-white text-center"
-                  style={{ background: 'var(--color-brand)' }}
-                >
-                  Start free
-                </a>
+                {authedFirstName ? (
+                  <Link
+                    href="/me"
+                    onClick={() => setOpen(false)}
+                    className="px-4 py-2 rounded-lg text-sm font-medium text-white text-center"
+                    style={{ background: 'var(--color-brand)' }}
+                  >
+                    My account ({authedFirstName})
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      href="/login"
+                      onClick={() => setOpen(false)}
+                      className="px-4 py-2 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg text-center"
+                    >
+                      Sign in
+                    </Link>
+                    <Link
+                      href="/register"
+                      onClick={() => setOpen(false)}
+                      className="px-4 py-2 rounded-lg text-sm font-medium text-white text-center"
+                      style={{ background: 'var(--color-brand)' }}
+                    >
+                      Start free
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </aside>

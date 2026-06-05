@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { marketingApi } from '@/lib/api';
 import { buildPageMetadata } from '@/lib/seo';
 import { LEGAL_DOCS } from '@/data/legal';
+import { legalFallback } from '@/data/static-pages';
+import type { LegalContent } from '@/lib/types';
 
 interface Params {
   slug: string;
@@ -14,9 +17,32 @@ export function generateStaticParams(): Params[] {
   return Object.keys(LEGAL_DOCS).map((slug) => ({ slug }));
 }
 
+/**
+ * Resolve legal copy: CMS row at slug `legal/<slug>` wins, otherwise the
+ * bundled `LEGAL_DOCS` map. Partial overrides keep the bundled sections so
+ * an admin tweaking only `intro` doesn't blank the rest of the document.
+ */
+async function resolveLegalContent(slug: string): Promise<LegalContent | null> {
+  const fallback = legalFallback(slug);
+  if (!fallback) return null;
+  const row = await marketingApi.getPage(`legal/${slug}`);
+  const override =
+    row?.content && typeof row.content === 'object'
+      ? (row.content as Partial<LegalContent>)
+      : null;
+  if (!override) return fallback;
+  return {
+    ...fallback,
+    ...override,
+    // Keep the bundled section list whenever the admin hasn't supplied one;
+    // otherwise an empty array from the editor would erase the page body.
+    sections: override.sections?.length ? override.sections : fallback.sections,
+  };
+}
+
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { slug } = await params;
-  const doc = LEGAL_DOCS[slug];
+  const doc = await resolveLegalContent(slug);
   if (!doc) return { title: 'Document not found — EduSphere' };
   return buildPageMetadata({
     slug: `legal/${doc.slug}`,
@@ -29,7 +55,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 
 export default async function LegalPage({ params }: { params: Promise<Params> }) {
   const { slug } = await params;
-  const doc = LEGAL_DOCS[slug];
+  const doc = await resolveLegalContent(slug);
   if (!doc) return notFound();
 
   return (

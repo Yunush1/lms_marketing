@@ -30,8 +30,14 @@ const CheckIcon = () => (
 const formatPrice = (rupees: number) =>
   rupees === 0 ? '₹0' : `₹${rupees.toLocaleString('en-IN')}`;
 
-const planCtaHref = (p: MarketingPlanContent) =>
-  p.contactSales ? p.ctaTarget : `${APP_URL}${p.ctaTarget}`;
+// `/register` and `/login` stay on the marketing site (in-app routing,
+// no full page load). Everything else opens in the SPA.
+const IN_SITE_TARGETS = new Set(['/register', '/login', '/contact']);
+const planCtaHref = (p: MarketingPlanContent) => {
+  if (p.contactSales) return p.ctaTarget;
+  if (IN_SITE_TARGETS.has(p.ctaTarget)) return p.ctaTarget;
+  return `${APP_URL}${p.ctaTarget}`;
+};
 
 export default async function PricingPage() {
   const live = await marketingApi.getPricing();

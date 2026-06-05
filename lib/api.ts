@@ -48,6 +48,11 @@ interface ServerGetOptions {
  * Server-only GET that uses the native fetch (so Next.js's ISR + revalidate
  * controls apply). Returns null on any failure so callers can fall back to
  * inline copy instead of crashing the prerender.
+ *
+ * The backend wraps every response via TransformInterceptor:
+ *   { success, statusCode, message, data, pagination?, timestamp }
+ * We unwrap to `data` here so callers always get the raw payload they
+ * expect — same shape they'd see if they hit the backend directly.
  */
 async function serverGet<T>(path: string, opts: ServerGetOptions = {}): Promise<T | null> {
   const { revalidate = DEFAULT_REVALIDATE_SECONDS } = opts;
@@ -55,7 +60,13 @@ async function serverGet<T>(path: string, opts: ServerGetOptions = {}): Promise<
   try {
     const res = await fetch(url, { next: { revalidate } });
     if (!res.ok) return null;
-    return (await res.json()) as T;
+    const envelope = await res.json();
+    // Unwrap if it's the standard envelope; otherwise return as-is (works
+    // for legacy / un-intercepted endpoints).
+    if (envelope && typeof envelope === 'object' && 'data' in envelope && 'success' in envelope) {
+      return (envelope as { data: T }).data ?? null;
+    }
+    return envelope as T;
   } catch (err) {
     console.error('[marketing] api fetch failed', url, err);
     return null;

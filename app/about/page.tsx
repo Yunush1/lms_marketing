@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { marketingApi } from '@/lib/api';
 import { buildPageMetadata } from '@/lib/seo';
+import { ABOUT_FALLBACK } from '@/data/static-pages';
+import type { AboutContent } from '@/lib/types';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://app.edusphere.app';
 
@@ -18,36 +21,49 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
-const STATS = [
-  { label: 'Schools onboarded', value: '120+' },
-  { label: 'Students managed', value: '85,000+' },
-  { label: 'Uptime', value: '99.9%' },
-  { label: 'Avg. onboarding', value: '1 day' },
-];
+/**
+ * Merge admin overrides over the bundled fallback. Top-level keys the admin
+ * touched replace the fallback wholesale (matches the rest of the CMS); we
+ * defensively repair empty arrays so a stray `[]` from the editor doesn't
+ * blank the page.
+ */
+function resolveAboutContent(row: unknown): AboutContent {
+  const override = (row && typeof row === 'object' && 'content' in row
+    ? (row as { content?: Partial<AboutContent> }).content
+    : null) ?? {};
+  const merged: AboutContent = { ...ABOUT_FALLBACK, ...override };
+  if (!merged.hero || !merged.hero.title) merged.hero = ABOUT_FALLBACK.hero;
+  if (!merged.stats?.length) merged.stats = ABOUT_FALLBACK.stats;
+  if (!merged.beliefs?.length) merged.beliefs = ABOUT_FALLBACK.beliefs;
+  if (!merged.ctas?.length) merged.ctas = ABOUT_FALLBACK.ctas;
+  return merged;
+}
 
-export default function AboutPage() {
+// `/register` and `/login` stay on the marketing site; anything else routes
+// through to the SPA app origin.
+const IN_SITE = new Set(['/register', '/login', '/contact', '/about', '/pricing']);
+const ctaHref = (target: string) =>
+  IN_SITE.has(target) || target.startsWith('/contact') || target.startsWith('/legal')
+    ? target
+    : `${APP_URL}${target}`;
+
+export default async function AboutPage() {
+  const row = await marketingApi.getPage('about');
+  const content = resolveAboutContent(row);
+
   return (
     <div className="py-16">
       <div className="max-w-[1000px] mx-auto px-5">
         <h1 className="text-[clamp(28px,4vw,44px)] font-extrabold text-slate-900 m-0">
-          We build software schools actually enjoy using
+          {content.hero.title}
         </h1>
-        <p className="text-slate-600 text-lg leading-loose mt-5">
-          EduSphere started with a simple belief: school administrators spend
-          far too much time fighting spreadsheets and disconnected tools. We set
-          out to build one secure, multi-tenant platform that unifies
-          academics, fees, staff and parent communication — without sacrificing
-          the strict data isolation every institution deserves.
-        </p>
-        <p className="text-slate-600 text-base leading-loose">
-          Today, schools and multi-campus groups run their day-to-day
-          operations on EduSphere — from admissions to report cards to online
-          fee collection — backed by role-based access control and realtime
-          notifications.
-        </p>
+        <p className="text-slate-600 text-lg leading-loose mt-5">{content.hero.intro}</p>
+        {content.hero.body && (
+          <p className="text-slate-600 text-base leading-loose">{content.hero.body}</p>
+        )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 my-12">
-          {STATS.map((s) => (
+          {content.stats.map((s) => (
             <div key={s.label}>
               <div className="text-3xl font-extrabold" style={{ color: 'var(--color-brand)' }}>
                 {s.value}
@@ -57,27 +73,34 @@ export default function AboutPage() {
           ))}
         </div>
 
-        <h2 className="text-2xl font-bold text-slate-900 mt-12 mb-4">What we believe</h2>
+        {content.beliefsHeading && (
+          <h2 className="text-2xl font-bold text-slate-900 mt-12 mb-4">
+            {content.beliefsHeading}
+          </h2>
+        )}
         <ul className="space-y-3 text-slate-600 leading-relaxed">
-          <li><strong className="text-slate-900">Tenant isolation is non-negotiable.</strong> Every privileged query is scoped by the school in your JWT.</li>
-          <li><strong className="text-slate-900">Software should fade into the background.</strong> Two taps to mark attendance. One screen to reconcile fees.</li>
-          <li><strong className="text-slate-900">Schools deserve real support.</strong> Real humans, not ticket queues that go nowhere.</li>
+          {content.beliefs.map((b) => (
+            <li key={b.strong}>
+              <strong className="text-slate-900">{b.strong}</strong> {b.rest}
+            </li>
+          ))}
         </ul>
 
         <div className="mt-12 flex gap-3 flex-wrap">
-          <a
-            href={`${APP_URL}/register`}
-            className="px-5 py-2.5 rounded-[10px] text-white font-medium"
-            style={{ background: 'var(--color-brand)' }}
-          >
-            Start free
-          </a>
-          <Link
-            href="/contact"
-            className="px-5 py-2.5 rounded-[10px] border border-slate-300 text-slate-900 font-medium"
-          >
-            Talk to our team
-          </Link>
+          {content.ctas.map((cta) => (
+            <Link
+              key={cta.label}
+              href={ctaHref(cta.target)}
+              className={`px-5 py-2.5 rounded-[10px] font-medium ${
+                cta.primary
+                  ? 'text-white'
+                  : 'border border-slate-300 text-slate-900'
+              }`}
+              style={cta.primary ? { background: 'var(--color-brand)' } : undefined}
+            >
+              {cta.label}
+            </Link>
+          ))}
         </div>
       </div>
     </div>

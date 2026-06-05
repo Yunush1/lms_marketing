@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { MobileMenu } from './MobileMenu';
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://app.edusphere.app';
+import { getCurrentUser } from '@/lib/auth-server';
 
 interface NavLeaf { to: string; label: string }
 interface NavGroup { label: string; items: NavLeaf[] }
@@ -64,11 +63,15 @@ const ChevronIcon = () => (
 );
 
 /**
- * Server-rendered header. Desktop nav uses a CSS-only hover dropdown (no
- * JS shipped for nav). The mobile drawer is the only client-side piece
- * and is split into its own client component to keep the JS payload small.
+ * Server-rendered header. Reads the auth cookie so the right-rail CTA
+ * flips between "Sign in / Start free" (anonymous) and a clickable
+ * "Account" chip showing the user's initial + name (authenticated). No
+ * client hydration is required for the auth state — every request comes
+ * back with the correct chip already rendered.
  */
-export function Header() {
+export async function Header() {
+  const user = await getCurrentUser();
+
   return (
     <header className="sticky top-0 z-50 bg-white/85 backdrop-blur border-b border-slate-100">
       <div className="max-w-[1200px] mx-auto px-5 py-3.5 flex items-center justify-between gap-3">
@@ -121,22 +124,42 @@ export function Header() {
         </nav>
 
         <div className="hidden md:flex gap-2 items-center">
-          <a
-            href={`${APP_URL}/login`}
-            className="px-4 py-1.5 text-sm font-medium text-slate-700 hover:text-slate-900"
-          >
-            Sign in
-          </a>
-          <a
-            href={`${APP_URL}/register`}
-            className="px-4 py-1.5 rounded-lg text-sm font-medium text-white"
-            style={{ background: 'var(--color-brand)' }}
-          >
-            Start free
-          </a>
+          {user ? (
+            <Link
+              href="/me"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 transition"
+            >
+              <span
+                className="inline-flex items-center justify-center w-7 h-7 rounded-full text-white text-[12px] font-bold"
+                style={{ background: 'var(--color-brand)' }}
+                aria-hidden
+              >
+                {(user.firstName?.[0] ?? user.email?.[0] ?? '?').toUpperCase()}
+              </span>
+              <span className="text-[14px] font-medium text-slate-700">
+                {user.firstName || 'Account'}
+              </span>
+            </Link>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="px-4 py-1.5 text-sm font-medium text-slate-700 hover:text-slate-900"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/register"
+                className="px-4 py-1.5 rounded-lg text-sm font-medium text-white"
+                style={{ background: 'var(--color-brand)' }}
+              >
+                Start free
+              </Link>
+            </>
+          )}
         </div>
 
-        <MobileMenu nav={NAV} appUrl={APP_URL} />
+        <MobileMenu nav={NAV} authedFirstName={user?.firstName ?? null} />
       </div>
     </header>
   );

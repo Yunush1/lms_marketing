@@ -42,12 +42,13 @@ export default async function HomePage() {
   // Same defensive merge — protects against partial CMS overrides during ISR.
   const liveHome = await marketingApi.getHome();
   const livePricing = await marketingApi.getPricing();
+   
   const content = { ...HOME_FALLBACK, ...(liveHome ?? {}) };
   const pricing = { ...PRICING_FALLBACK, ...(livePricing ?? {}) };
+  // console.log('Home content:', { liveHome, livePricing }); // Debug log to verify content structure
   if (!content.hero) content.hero = HOME_FALLBACK.hero;
   const faqs = pricing.faqs?.length ? pricing.faqs : PRICING_FALLBACK.faqs;
-  const [titleA, titleB] = content.hero.title.split('\n');
-
+  const [titleA, titleB] = content?.hero?.eyebrow?.split('\n');
   return (
     <div>
       {/* Hero */}
@@ -66,13 +67,27 @@ export default async function HomePage() {
             {content.hero.subtitle}
           </p>
           <div className="flex gap-3 justify-center flex-wrap">
-            <a
-              href={`${APP_URL}${content.hero.primaryCta.target}`}
-              className="px-5 py-2.5 rounded-[10px] text-white font-medium"
-              style={{ background: 'var(--color-brand)' }}
-            >
-              {content.hero.primaryCta.label}<ArrowIcon />
-            </a>
+            {/* Hero primary CTA — keep `/register` and `/login` on the
+                marketing site (no full reload); anything else (e.g. a
+                deep-link into the SPA) goes to the app origin. */}
+            {content.hero.primaryCta.target === '/register' ||
+            content.hero.primaryCta.target === '/login' ? (
+              <Link
+                href={content.hero.primaryCta.target}
+                className="px-5 py-2.5 rounded-[10px] text-white font-medium"
+                style={{ background: 'var(--color-brand)' }}
+              >
+                {content.hero.primaryCta.label}<ArrowIcon />
+              </Link>
+            ) : (
+              <a
+                href={`${APP_URL}${content.hero.primaryCta.target}`}
+                className="px-5 py-2.5 rounded-[10px] text-white font-medium"
+                style={{ background: 'var(--color-brand)' }}
+              >
+                {content.hero.primaryCta.label}<ArrowIcon />
+              </a>
+            )}
             <Link
               href={content.hero.secondaryCta.target}
               className="px-5 py-2.5 rounded-[10px] border border-slate-300 text-slate-900 font-medium"
@@ -211,12 +226,12 @@ export default async function HomePage() {
             Free for up to 50 students. 14-day trial on every paid plan.
           </p>
           <div className="flex gap-3 justify-center flex-wrap">
-            <a
-              href={`${APP_URL}/register`}
+            <Link
+              href="/register"
               className="px-5 py-2.5 rounded-lg bg-white text-slate-900 font-medium"
             >
               Create your school
-            </a>
+            </Link>
             <Link
               href="/contact?intent=demo"
               className="px-5 py-2.5 rounded-lg border border-white/70 text-white font-medium"
