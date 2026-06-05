@@ -9,8 +9,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { setAuthCookies } from '@/lib/auth-cookies';
 
 const BASE =
-  process.env.API_URL ??
   process.env.NEXT_PUBLIC_API_URL ??
+  process.env.API_URL ??
   'http://localhost:3000/api/v1';
 
 export async function POST(req: NextRequest) {
