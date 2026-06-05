@@ -9,7 +9,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { setAuthCookies } from '@/lib/auth-cookies';
 
 const BASE =
-  process.env.NEXT_PUBLIC_API_URL ??
+  process.env.NEXT_PUBLIC_API_URL_PUBLIC ??
   process.env.API_URL ??
   'http://localhost:3000/api/v1';
 
