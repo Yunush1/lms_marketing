@@ -17,7 +17,7 @@ import type {
 } from './types';
 
 const BASE =
-  process.env.API_URL ??
+  process.env.NEXT_PUBLIC_API_URL_PUBLIC ??
   process.env.NEXT_PUBLIC_API_URL ??
   'http://localhost:3000/api/v1';
 

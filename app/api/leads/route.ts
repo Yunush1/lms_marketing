@@ -10,11 +10,7 @@
  * trivially CORS-safe for the marketing site.
  */
 import { NextResponse, type NextRequest } from 'next/server';
-
-const BASE =
-  process.env.API_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  'http://localhost:3000/api/v1';
+import { BASE } from '@/lib/api';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);

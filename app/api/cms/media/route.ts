@@ -6,11 +6,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { AUTH_COOKIES } from '@/lib/auth-cookies';
-
-const BASE =
-  process.env.API_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  'http://localhost:3000/api/v1';
+import { BASE } from '@/lib/api';
 
 async function getToken(): Promise<string | null> {
   const jar = await cookies();

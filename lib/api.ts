@@ -26,7 +26,7 @@ import type {
   SolutionContent,
 } from './types';
 
-const BASE =
+export const BASE =
   process.env.NEXT_PUBLIC_API_URL_PUBLIC ??
   process.env.NEXT_PUBLIC_API_URL ??
   'http://localhost:3000/api/v1';

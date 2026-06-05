@@ -5,11 +5,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { AUTH_COOKIES, clearAuthCookies } from '@/lib/auth-cookies';
-
-const BASE =
-  process.env.API_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  'http://localhost:3000/api/v1';
+import { BASE } from '@/lib/api';
 
 export async function POST() {
   const jar = await cookies();
