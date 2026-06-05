@@ -7,6 +7,7 @@ import { Avatar, Button, Drawer, Dropdown, Grid, Layout, Menu, Typography } from
 import {
   AppstoreOutlined,
   BlockOutlined,
+  CompassOutlined,
   DashboardOutlined,
   FileTextOutlined,
   LogoutOutlined,
@@ -52,6 +53,7 @@ const NAV: NavItem[] = [
   { key: 'pages', href: '/cms/pages', label: 'Pages', icon: <AppstoreOutlined /> },
   { key: 'templates', href: '/cms/templates', label: 'Templates', icon: <BlockOutlined /> },
   { key: 'media', href: '/cms/media', label: 'Media', icon: <PictureOutlined /> },
+  { key: 'navigation', href: '/cms/navigation', label: 'Navigation', icon: <CompassOutlined /> },
   { key: 'posts', href: '/cms/posts', label: 'Posts', icon: <FileTextOutlined />, upcoming: true },
   { key: 'docs', href: '/cms/docs', label: 'Docs', icon: <ReadOutlined />, upcoming: true },
   { key: 'settings', href: '/cms/settings', label: 'Settings', icon: <SettingOutlined />, upcoming: true },

@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import type { HeaderItem } from '@/lib/site-nav';
 
-interface NavLeaf { to: string; label: string }
-interface NavGroup { label: string; items: NavLeaf[] }
-const isGroup = (n: NavLeaf | NavGroup): n is NavGroup => 'items' in n;
+const isGroup = (n: HeaderItem): n is Extract<HeaderItem, { kind: 'group' }> =>
+  n.kind === 'group';
 
 interface Props {
-  nav: (NavLeaf | NavGroup)[];
+  /** Resolved nav structure passed down from Header — already merged
+   *  with CMS overrides, so MobileMenu just renders. */
+  nav: HeaderItem[];
   /** First name of the signed-in user, or null. */
   authedFirstName: string | null;
 }
@@ -57,34 +59,64 @@ export function MobileMenu({ nav, authedFirstName }: Props) {
               </button>
             </div>
             <div className="flex flex-col gap-4">
-              {nav.map((n) =>
-                isGroup(n) ? (
-                  <div key={n.label}>
-                    <div className="text-xs uppercase text-slate-400 tracking-wide mb-1.5">{n.label}</div>
-                    <div className="flex flex-col gap-1.5">
-                      {n.items.map((i) => (
-                        <Link
-                          key={i.to}
-                          href={i.to}
-                          onClick={() => setOpen(false)}
-                          className="text-slate-700 hover:text-[var(--color-brand)] py-1.5 font-medium"
-                        >
-                          {i.label}
-                        </Link>
-                      ))}
+              {nav
+                .filter((n) => n.label.trim())
+                .map((n, idx) =>
+                  isGroup(n) ? (
+                    <div key={`${n.label}-${idx}`}>
+                      <div className="text-xs uppercase text-slate-400 tracking-wide mb-1.5">
+                        {n.label}
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        {n.items
+                          .filter((i) => i.label.trim() && i.target.trim())
+                          .map((i, j) =>
+                            i.target.startsWith('http') ? (
+                              <a
+                                key={`${n.label}-${i.label}-${j}`}
+                                href={i.target}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={() => setOpen(false)}
+                                className="text-slate-700 hover:text-[var(--color-brand)] py-1.5 font-medium"
+                              >
+                                {i.label}
+                              </a>
+                            ) : (
+                              <Link
+                                key={`${n.label}-${i.label}-${j}`}
+                                href={i.target}
+                                onClick={() => setOpen(false)}
+                                className="text-slate-700 hover:text-[var(--color-brand)] py-1.5 font-medium"
+                              >
+                                {i.label}
+                              </Link>
+                            ),
+                          )}
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <Link
-                    key={n.to}
-                    href={n.to}
-                    onClick={() => setOpen(false)}
-                    className="text-slate-700 hover:text-[var(--color-brand)] py-1.5 font-medium"
-                  >
-                    {n.label}
-                  </Link>
-                ),
-              )}
+                  ) : n.target.startsWith('http') ? (
+                    <a
+                      key={`${n.label}-${n.target}-${idx}`}
+                      href={n.target}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setOpen(false)}
+                      className="text-slate-700 hover:text-[var(--color-brand)] py-1.5 font-medium"
+                    >
+                      {n.label}
+                    </a>
+                  ) : (
+                    <Link
+                      key={`${n.label}-${n.target}-${idx}`}
+                      href={n.target}
+                      onClick={() => setOpen(false)}
+                      className="text-slate-700 hover:text-[var(--color-brand)] py-1.5 font-medium"
+                    >
+                      {n.label}
+                    </Link>
+                  ),
+                )}
               <div className="flex flex-col gap-2 mt-3">
                 {authedFirstName ? (
                   <Link

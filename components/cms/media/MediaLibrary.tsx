@@ -157,7 +157,7 @@ export function MediaLibrary({ mode = 'page', onSelect }: MediaLibraryProps) {
       const form = new FormData();
       form.append('file', file);
       try {
-        const res = await fetch(`/api/cms/media?folder=${encodeURIComponent(folder ?? 'general')}`, {
+        const res = await fetch(`/api/cms/media?folder=${encodeURIComponent(folder!)}`, {
           method: 'POST',
           body: form,
         });

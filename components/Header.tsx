@@ -1,51 +1,67 @@
 import Link from 'next/link';
 import { MobileMenu } from './MobileMenu';
 import { getCurrentUser } from '@/lib/auth-server';
+import {
+  BUNDLED_HEADER_NAV,
+  getSiteNav,
+  type HeaderItem,
+  type SiteNavConfig,
+  type SiteNavLink,
+} from '@/lib/site-nav';
 
-interface NavLeaf { to: string; label: string }
-interface NavGroup { label: string; items: NavLeaf[] }
+/**
+ * Decide which nav structure to render.
+ *  - If the editor has clicked "Sync current navbar" (so headerItems
+ *    is populated), that's the source of truth. Bundled defaults stop
+ *    being used at all.
+ *  - Otherwise we use the bundled list and layer any legacy "extras"
+ *    fields the editor may still have on top — preserves prior
+ *    behaviour for users who customised before headerItems landed.
+ */
+function resolveHeader(siteNav: SiteNavConfig): HeaderItem[] {
+  if (siteNav.headerItems.length > 0) return siteNav.headerItems;
 
-const NAV: (NavLeaf | NavGroup)[] = [
-  {
-    label: 'Product',
-    items: [
-      { to: '/product/academics', label: 'Academics' },
-      { to: '/product/fees-billing', label: 'Fees & Billing' },
-      { to: '/product/staff-payroll', label: 'Staff & Payroll' },
-      { to: '/product/parents', label: 'Parent Engagement' },
-      { to: '/product/reports', label: 'Reports & Insights' },
-    ],
-  },
-  {
-    label: 'Solutions',
-    items: [
-      { to: '/solutions/schools', label: 'Single school' },
-      { to: '/solutions/groups', label: 'Multi-campus groups' },
-      { to: '/solutions/coaching', label: 'Coaching & tutoring' },
-    ],
-  },
-  { to: '/pricing', label: 'Pricing' },
-  { to: '/customers', label: 'Customers' },
-  {
-    label: 'Resources',
-    items: [
-      { to: '/blogs', label: 'Blog' },
-      { to: '/docs', label: 'Docs' },
-      { to: '/changelog', label: 'Changelog' },
-      { to: '/integrations', label: 'Integrations' },
-    ],
-  },
-  {
-    label: 'Company',
-    items: [
-      { to: '/about', label: 'About' },
-      { to: '/security', label: 'Security & trust' },
-      { to: '/contact', label: 'Contact' },
-    ],
-  },
-];
+  // Append-only legacy mode — fold headerGroupExtras into matching
+  // bundled groups, then append custom dropdowns + flat extras.
+  const next: HeaderItem[] = BUNDLED_HEADER_NAV.map((it) => {
+    if (it.kind === 'link') return it;
+    const more = siteNav.headerGroupExtras[it.label] ?? [];
+    if (more.length === 0) return it;
+    return { kind: 'group', label: it.label, items: [...it.items, ...more] };
+  });
+  for (const g of siteNav.headerGroups) {
+    if (!g.heading.trim()) continue;
+    next.push({ kind: 'group', label: g.heading, items: g.items });
+  }
+  for (const e of siteNav.headerExtras) {
+    if (!e.label.trim()) continue;
+    next.push({ kind: 'link', label: e.label, target: e.target });
+  }
+  return next;
+}
 
-const isGroup = (n: NavLeaf | NavGroup): n is NavGroup => 'items' in n;
+const isGroup = (n: HeaderItem): n is Extract<HeaderItem, { kind: 'group' }> =>
+  n.kind === 'group';
+
+/** Single link renderer — picks `<a target="_blank">` for absolute URLs
+ *  so editors can drop in external targets without surprises. */
+function NavLink({
+  link,
+  className,
+}: {
+  link: SiteNavLink | { label: string; target: string };
+  className: string;
+}) {
+  return link.target.startsWith('http') ? (
+    <a href={link.target} target="_blank" rel="noopener noreferrer" className={className}>
+      {link.label}
+    </a>
+  ) : (
+    <Link href={link.target} className={className}>
+      {link.label}
+    </Link>
+  );
+}
 
 const LogoMark = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -70,7 +86,11 @@ const ChevronIcon = () => (
  * back with the correct chip already rendered.
  */
 export async function Header() {
-  const user = await getCurrentUser();
+  // Two parallel reads — the user (cookie + /auth/me) and the site-nav
+  // overrides from the CMS. Both are server-side, both are cached at
+  // their own layers, so this doesn't add a round-trip on the hot path.
+  const [user, siteNav] = await Promise.all([getCurrentUser(), getSiteNav()]);
+  const items = resolveHeader(siteNav);
 
   return (
     <header className="sticky top-0 z-50 bg-white/85 backdrop-blur border-b border-slate-100">
@@ -86,41 +106,41 @@ export async function Header() {
         </Link>
 
         <nav className="hidden md:flex gap-6 items-center">
-          {NAV.map((n) =>
-            isGroup(n) ? (
-              <div key={n.label} className="relative group">
-                <span className="text-slate-700 hover:text-[var(--color-brand)] cursor-pointer flex items-center font-medium py-1.5">
-                  {n.label} <ChevronIcon />
-                </span>
-                <div
-                  className="
-                    absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-[10px]
-                    shadow-[0_8px_28px_rgba(15,23,42,0.12)] p-1.5 min-w-[200px]
-                    invisible opacity-0 group-hover:visible group-hover:opacity-100
-                    transition-opacity z-[60]
-                  "
-                >
-                  {n.items.map((i) => (
-                    <Link
-                      key={i.to}
-                      href={i.to}
-                      className="block px-3 py-2 text-sm text-slate-900 rounded-md hover:bg-slate-100"
-                    >
-                      {i.label}
-                    </Link>
-                  ))}
+          {items
+            .filter((n) => n.label.trim())
+            .map((n, idx) =>
+              isGroup(n) ? (
+                <div key={`${n.label}-${idx}`} className="relative group">
+                  <span className="text-slate-700 hover:text-[var(--color-brand)] cursor-pointer flex items-center font-medium py-1.5">
+                    {n.label} <ChevronIcon />
+                  </span>
+                  <div
+                    className="
+                      absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-[10px]
+                      shadow-[0_8px_28px_rgba(15,23,42,0.12)] p-1.5 min-w-[200px]
+                      invisible opacity-0 group-hover:visible group-hover:opacity-100
+                      transition-opacity z-[60]
+                    "
+                  >
+                    {n.items
+                      .filter((i) => i.label.trim() && i.target.trim())
+                      .map((i, j) => (
+                        <NavLink
+                          key={`${n.label}-${i.label}-${j}`}
+                          link={i}
+                          className="block px-3 py-2 text-sm text-slate-900 rounded-md hover:bg-slate-100"
+                        />
+                      ))}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <Link
-                key={n.to}
-                href={n.to}
-                className="text-slate-700 hover:text-[var(--color-brand)] font-medium py-1.5"
-              >
-                {n.label}
-              </Link>
-            ),
-          )}
+              ) : (
+                <NavLink
+                  key={`${n.label}-${n.target}-${idx}`}
+                  link={n}
+                  className="text-slate-700 hover:text-[var(--color-brand)] font-medium py-1.5"
+                />
+              ),
+            )}
         </nav>
 
         <div className="hidden md:flex gap-2 items-center">
@@ -159,7 +179,7 @@ export async function Header() {
           )}
         </div>
 
-        <MobileMenu nav={NAV} authedFirstName={user?.firstName ?? null} />
+        <MobileMenu nav={items} authedFirstName={user?.firstName ?? null} />
       </div>
     </header>
   );
