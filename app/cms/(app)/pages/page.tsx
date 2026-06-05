@@ -4,6 +4,7 @@ import { Space } from 'antd';
 import { cmsAuthedGet } from '@/lib/auth-server';
 import { NewPageButton } from '@/components/cms/NewPageButton';
 import { SyncSeedButton } from '@/components/cms/SyncSeedButton';
+import { StatusPill } from '@/components/cms/StatusPill';
 import type { MarketingPage } from '@/lib/types';
 
 // Critical: this page is dynamic — without this directive Next.js can
@@ -342,48 +343,4 @@ function Th({ children, align = 'left' }: { children: React.ReactNode; align?: '
 
 function Td({ children, align = 'left' }: { children: React.ReactNode; align?: 'left' | 'right' }) {
   return <td style={{ padding: '12px 16px', textAlign: align }}>{children}</td>;
-}
-
-function StatusBadge({ published }: { published: boolean }) {
-  return (
-    <span
-      style={{
-        background: published ? '#dcfce7' : '#f1f5f9',
-        color: published ? '#166534' : '#475569',
-        padding: '2px 8px',
-        borderRadius: 999,
-        fontSize: 11,
-        fontWeight: 700,
-      }}
-    >
-      {published ? 'PUBLISHED' : 'DRAFT'}
-    </span>
-  );
-}
-
-/* Phase-4 status pill — separate from the legacy `published` boolean
- * because scheduled / archived no longer fit the binary above. Renders
- * a coloured pill per editorial state. */
-export function StatusPill({ status }: { status: string }) {
-  const map: Record<string, { bg: string; fg: string; label: string }> = {
-    draft: { bg: '#f1f5f9', fg: '#475569', label: 'DRAFT' },
-    scheduled: { bg: '#fef3c7', fg: '#92400e', label: 'SCHEDULED' },
-    published: { bg: '#dcfce7', fg: '#166534', label: 'PUBLISHED' },
-    archived: { bg: '#fee2e2', fg: '#991b1b', label: 'ARCHIVED' },
-  };
-  const m = map[status] ?? map.draft;
-  return (
-    <span
-      style={{
-        background: m.bg,
-        color: m.fg,
-        padding: '2px 8px',
-        borderRadius: 999,
-        fontSize: 11,
-        fontWeight: 700,
-      }}
-    >
-      {m.label}
-    </span>
-  );
 }
