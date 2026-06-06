@@ -42,8 +42,8 @@ export default async function BlogIndexPage({
 }) {
   const { tag } = await searchParams;
   const live = await marketingApi.listBlogPosts(tag ? { tag } : undefined);
-
   let posts: BlogPostView[];
+  console.log('BlogIndexPage',{live})
   if (live && live.length > 0) {
     posts = live.map(toBlogPost);
   } else if (tag) {

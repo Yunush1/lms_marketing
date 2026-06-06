@@ -64,6 +64,10 @@ export function NavigationEditor({ pageId, initial, initialStatus }: Props) {
   const [config, setConfig] = useState<SiteNavConfig>(initial);
   const [saving, setSaving] = useState(false);
   const [published, setPublished] = useState(initialStatus === 'published');
+  // Tracked separately from the `pageId` prop so a 409 self-heal can
+  // remember the resolved id for subsequent saves without waiting for
+  // the server component to re-render.
+  const [resolvedPageId, setResolvedPageId] = useState<string | null>(pageId);
 
   const patch = (next: Partial<SiteNavConfig>) =>
     setConfig((s) => ({ ...s, ...next }));
@@ -121,20 +125,27 @@ export function NavigationEditor({ pageId, initial, initialStatus }: Props) {
     patch({ footerBottomLinks: items });
 
   // ── Save / publish ───────────────────────────────────────────────────
+
+  /** Send a PATCH to /api/cms/pages/:id. Used for both the initial save
+   *  on an existing row and the 409 self-heal fallback below. */
+  const patchExisting = (id: string, publish?: boolean) =>
+    fetch(`/api/cms/pages/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: config,
+        ...(publish ? { status: 'published' } : {}),
+      }),
+    });
+
   const persist = async (opts: { publish?: boolean } = {}) => {
     setSaving(true);
     try {
       let res: Response;
-      if (pageId) {
+      let effectiveId = resolvedPageId;
+      if (effectiveId) {
         // Existing row — PATCH content + (optionally) status.
-        res = await fetch(`/api/cms/pages/${pageId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: config,
-            ...(opts.publish ? { status: 'published' } : {}),
-          }),
-        });
+        res = await patchExisting(effectiveId, opts.publish);
       } else {
         // No row yet — POST with the reserved slug. We default to
         // immediate publish since editors only land here when they want
@@ -149,9 +160,28 @@ export function NavigationEditor({ pageId, initial, initialStatus }: Props) {
             content: config,
           }),
         });
+
+        // The server page sometimes can't find the existing row (e.g.
+        // search-by-slug missed it because of the `/` in the slug), so
+        // we end up POSTing for a row that already exists. The backend
+        // returns 409 with `existingId` — replay the save as a PATCH
+        // so the editor stops fighting the user.
+        if (res.status === 409) {
+          const errBody = await res.json().catch(() => ({}));
+          const existingId: string | undefined = errBody?.existingId;
+          if (existingId) {
+            setResolvedPageId(existingId);
+            effectiveId = existingId;
+            res = await patchExisting(existingId, opts.publish);
+          }
+        }
       }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message ?? 'Save failed');
+      // POST returns the new row, so grab its id for next save.
+      if (!effectiveId && (data?.id || data?.data?.id)) {
+        setResolvedPageId(data?.id ?? data?.data?.id);
+      }
       message.success(opts.publish ? 'Saved + published' : 'Saved');
       if (opts.publish) setPublished(true);
       router.refresh();

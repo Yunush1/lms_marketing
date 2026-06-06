@@ -102,7 +102,7 @@ export const marketingApi = {
     qs.set('limit', String(params?.limit ?? 50));
     if (params?.tag) qs.set('tag', params.tag);
     const res = await serverGet<{ data: Blog[] }>(`/blogs?${qs.toString()}`);
-    return Array.isArray(res?.data) ? (res!.data as Blog[]) : [];
+    return Array.isArray(res) ? (res as Blog[]) : [];
   },
   getBlogPost: (slug: string) => serverGet<Blog>(`/blogs/${slug}`),
 };

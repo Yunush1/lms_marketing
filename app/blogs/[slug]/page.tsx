@@ -29,7 +29,7 @@ export async function generateStaticParams(): Promise<Params[]> {
 
 async function loadPost(slug: string): Promise<BlogPostView | null> {
   let live: any = await marketingApi.getBlogPost(slug);
-  if (live?.data?.slug) return toBlogPost(live?.data);
+  if (live?.slug) return toBlogPost(live);
   const fallback = BLOG_POSTS.find((p) => p.slug === slug);
   if (!fallback) return null;
   return {
