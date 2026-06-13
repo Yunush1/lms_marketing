@@ -1,8 +1,13 @@
 'use client';
 
-import { Button, Col, Form, Input, Result, Row } from 'antd';
+import { useState } from 'react';
+import { App as AntApp, Button, Col, Form, Input, Result, Row } from 'antd';
 import { useSubmitLead } from '@/hooks/useSubmitLead';
 import { logEvent, useTrackPageview } from '@/lib/audit';
+import {
+  TurnstileWidget,
+  isTurnstileEnabled,
+} from '@/components/security/TurnstileWidget';
 
 interface ContactValues {
   name: string;
@@ -16,9 +21,21 @@ export function ContactForm() {
   useTrackPageview('viewed_contact');
   const [form] = Form.useForm<ContactValues>();
   const submit = useSubmitLead();
+  const { message: antMessage } = AntApp.useApp();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRequired = isTurnstileEnabled();
 
   const onFinish = async (values: ContactValues) => {
-    await submit.mutateAsync({ ...values, source: 'contact' });
+    if (captchaRequired && !captchaToken) {
+      antMessage.warning('Please complete the captcha before submitting.');
+      return;
+    }
+    // console.log('ContactForm.onFinish: submitting lead', { values, captchaToken, captchaRequired });
+    await submit.mutateAsync({
+      ...values,
+      source: 'contact',
+      captchaToken: captchaToken ?? undefined,
+    });
     logEvent({
       event: 'submitted_contact_form',
       metadata: {
@@ -27,6 +44,7 @@ export function ContactForm() {
       },
     });
     form.resetFields();
+    setCaptchaToken(null);
   };
 
   if (submit.isSuccess) {
@@ -75,12 +93,17 @@ export function ContactForm() {
       <Form.Item name="message" label="How can we help?">
         <Input.TextArea rows={4} placeholder="We have ~800 students across 2 campuses…" />
       </Form.Item>
+      {/* Captcha rendered inline — disabled in dev where the site key
+          is absent, matched by the backend's TurnstileService. */}
+      <TurnstileWidget action="lead-submit" onToken={setCaptchaToken} />
       <Button
         type="primary"
         size="large"
         htmlType="submit"
         loading={submit.isPending}
+        disabled={captchaRequired && !captchaToken}
         block
+        style={{ marginTop: 12 }}
       >
         Send message
       </Button>

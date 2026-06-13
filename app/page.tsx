@@ -45,7 +45,6 @@ export default async function HomePage() {
    
   const content = { ...HOME_FALLBACK, ...(liveHome ?? {}) };
   const pricing = { ...PRICING_FALLBACK, ...(livePricing ?? {}) };
-  // console.log('Home content:', { liveHome, livePricing }); // Debug log to verify content structure
   if (!content.hero) content.hero = HOME_FALLBACK.hero;
   const faqs = pricing.faqs?.length ? pricing.faqs : PRICING_FALLBACK.faqs;
   const [titleA, titleB] = content?.hero?.eyebrow?.split('\n');

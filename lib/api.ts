@@ -26,10 +26,11 @@ import type {
   SolutionContent,
 } from './types';
 
-export const BASE =
-  process.env.NEXT_PUBLIC_API_URL_PUBLIC ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  'http://localhost:3000/api/v1';
+export const BASE = process.env.NODE_ENV === 'production'
+  ? process.env.NEXT_PUBLIC_API_URL_PUBLIC ?? process.env.NEXT_PUBLIC_API_URL
+  : process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
+// For simplicity, we assume the public URL (used in production) has the same path structure as the internal one — if that's not the case, set NEXT_PUBLIC_API_URL_PUBLIC explicitly to the full public API root URL including any path prefix.
+
 
 // Match the backend's Redis TTL so we don't out-cache its own freshness window.
 const DEFAULT_REVALIDATE_SECONDS = 600;

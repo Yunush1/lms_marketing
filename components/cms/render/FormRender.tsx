@@ -2,6 +2,10 @@
 
 import { useState } from 'react';
 import type { FormBlock, FormField } from '@/lib/blocks';
+import {
+  TurnstileWidget,
+  isTurnstileEnabled,
+} from '@/components/security/TurnstileWidget';
 
 /**
  * Public renderer for FormBlock. Client component because it needs to
@@ -20,6 +24,10 @@ export function FormRender({ block }: { block: FormBlock }) {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [topError, setTopError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  // Disabled in dev when no site key is configured. The backend mirrors
+  // this so verification is skipped end-to-end.
+  const captchaRequired = isTurnstileEnabled();
 
   const setField = (name: string, v: string) => {
     setValues((s) => ({ ...s, [name]: v }));
@@ -43,10 +51,19 @@ export function FormRender({ block }: { block: FormBlock }) {
       return;
     }
 
+    // Gate the submit on a fresh captcha token whenever Turnstile is
+    // configured. The backend enforces the same rule, so we'd hit a 401
+    // anyway — better to surface the error inline before the roundtrip.
+    if (captchaRequired && !captchaToken) {
+      setTopError('Please complete the captcha challenge before submitting.');
+      return;
+    }
+
     // Build the lead payload from mapped fields; anything unmapped goes
     // into the message body so it's not silently lost.
     const payload: Record<string, string | undefined> = {
       source: block.source ?? 'page-form',
+      captchaToken: captchaToken ?? undefined,
     };
     const extras: string[] = [];
     for (const f of block.fields) {
@@ -135,9 +152,13 @@ export function FormRender({ block }: { block: FormBlock }) {
               </div>
             ))}
           </div>
+          {/* Turnstile widget — renders inline when configured, no-op
+              otherwise. Token is captured into state and shipped with
+              the submit payload. */}
+          <TurnstileWidget action="lead-submit" onToken={setCaptchaToken} />
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || (captchaRequired && !captchaToken)}
             className="mt-6 w-full md:w-auto px-6 py-2.5 rounded-lg text-white font-medium disabled:opacity-60"
             style={{ background: 'var(--color-brand)' }}
           >

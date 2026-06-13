@@ -35,11 +35,12 @@ export function BlogList({ posts, activeTag }: Props) {
 
   // Show every tag that appears across the current result set so users can
   // browse adjacent tags from a filtered view too.
-  const allTags = useMemo(() => {
-    const tags = new Set<string>();
-    for (const p of posts) for (const t of postTags(p)) tags.add(t);
-    return Array.from(tags).sort();
-  }, [posts]);
+  const allTags = useMemo(
+    () =>
+      [...new Set(posts.flatMap(post => postTags(post).map(tag => tag.trim().toLowerCase())))]
+        .sort(),
+    [posts]
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -77,7 +78,7 @@ export function BlogList({ posts, activeTag }: Props) {
           {/* Active-tag banner (only when filtered) */}
           {activeTag && (
             <div className="flex items-center justify-between gap-3 mb-6 px-4 py-3 rounded-[10px]"
-                 style={{ background: 'var(--color-brand-50)', border: '1px solid var(--color-brand-100)' }}>
+              style={{ background: 'var(--color-brand-50)', border: '1px solid var(--color-brand-100)' }}>
               <div className="text-[14px] text-slate-700">
                 Showing posts tagged{' '}
                 <span
@@ -113,11 +114,10 @@ export function BlogList({ posts, activeTag }: Props) {
               <Link
                 href="/blogs"
                 onClick={() => logEvent({ event: 'blog_filter_tag', metadata: { tag: 'all' } })}
-                className={`px-3 py-1 rounded-full border text-[13px] transition-colors ${
-                  !activeTag
+                className={`px-3 py-1 rounded-full border text-[13px] transition-colors ${!activeTag
                     ? 'text-white'
                     : 'text-slate-700 border-slate-300 hover:bg-slate-100'
-                }`}
+                  }`}
                 style={
                   !activeTag
                     ? { background: 'var(--color-brand)', borderColor: 'var(--color-brand)' }
@@ -133,11 +133,10 @@ export function BlogList({ posts, activeTag }: Props) {
                     key={t}
                     href={`/blogs?tag=${encodeURIComponent(t)}`}
                     onClick={() => logEvent({ event: 'blog_filter_tag', metadata: { tag: t } })}
-                    className={`px-3 py-1 rounded-full border text-[13px] transition-colors ${
-                      selected
+                    className={`px-3 py-1 rounded-full border text-[13px] transition-colors ${selected
                         ? 'text-white'
                         : 'text-slate-700 border-slate-300 hover:bg-slate-100'
-                    }`}
+                      }`}
                     style={
                       selected
                         ? { background: 'var(--color-brand)', borderColor: 'var(--color-brand)' }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   App as AntApp,
@@ -68,6 +68,16 @@ export function NavigationEditor({ pageId, initial, initialStatus }: Props) {
   // remember the resolved id for subsequent saves without waiting for
   // the server component to re-render.
   const [resolvedPageId, setResolvedPageId] = useState<string | null>(pageId);
+  // Sync the prop into state: after the first successful save the
+  // server page re-runs and supplies the real id, but useState above
+  // only honours the *initial* prop — without this effect a second
+  // save would still POST and trip the 409 path again.
+  useEffect(() => {
+    if (pageId && pageId !== resolvedPageId) setResolvedPageId(pageId);
+    // intentionally only watching `pageId` — we don't want to clobber
+    // a self-healed id if the prop comes back as null mid-session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageId]);
 
   const patch = (next: Partial<SiteNavConfig>) =>
     setConfig((s) => ({ ...s, ...next }));
@@ -161,18 +171,57 @@ export function NavigationEditor({ pageId, initial, initialStatus }: Props) {
           }),
         });
 
-        // The server page sometimes can't find the existing row (e.g.
-        // search-by-slug missed it because of the `/` in the slug), so
-        // we end up POSTing for a row that already exists. The backend
-        // returns 409 with `existingId` — replay the save as a PATCH
-        // so the editor stops fighting the user.
+        // The server page sometimes can't find the existing row (slug
+        // search misses, ISR cache lag, etc.), so we end up POSTing
+        // for a row that already exists. The backend returns 409 with
+        // an existingId — replay the save as a PATCH so the editor
+        // stops fighting the user.
+        //
+        // The 409 body shape varies depending on the NestJS exception
+        // filter / interceptor chain — pull `existingId` from anywhere
+        // it might plausibly live, and if it's still missing, fall back
+        // to looking the row up by slug via our dedicated proxy.
         if (res.status === 409) {
           const errBody = await res.json().catch(() => ({}));
-          const existingId: string | undefined = errBody?.existingId;
+          let existingId: string | null | undefined =
+            errBody?.existingId ??
+            errBody?.data?.existingId ??
+            (typeof errBody?.message === 'object'
+              ? errBody.message?.existingId
+              : undefined) ??
+            errBody?.response?.existingId;
+
+          if (!existingId) {
+            // Fallback: ask the proxy to find the row by slug. Same
+            // backend admin endpoint, just behind a different URL the
+            // browser can reach.
+            try {
+              const lookup = await fetch(
+                `/api/cms/pages/by-slug?slug=${encodeURIComponent(SITE_NAV_SLUG)}`,
+                { cache: 'no-store' },
+              );
+              if (lookup.ok) {
+                const data = await lookup.json().catch(() => null);
+                existingId = data?.id ?? null;
+              }
+            } catch {
+              /* fall through — we'll surface the original 409 message */
+            }
+          }
+
           if (existingId) {
             setResolvedPageId(existingId);
             effectiveId = existingId;
             res = await patchExisting(existingId, opts.publish);
+          } else {
+            // Couldn't recover — surface the backend's original message
+            // (or a generic one) so the user knows the save didn't go
+            // through. The outer catch handles the toast.
+            throw new Error(
+              typeof errBody?.message === 'string'
+                ? errBody.message
+                : 'Slug conflict — could not resolve existing row id',
+            );
           }
         }
       }

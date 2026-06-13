@@ -304,6 +304,8 @@ export interface LeadPayload {
   organization?: string;
   message?: string;
   source?: string;
+  /** Cloudflare Turnstile token — required server-side in prod. */
+  captchaToken?: string;
 }
 
 export interface LeadResponse {
